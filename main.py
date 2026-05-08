@@ -9,6 +9,12 @@ from pathlib import Path
 from PIL import Image
 import io
 import asyncio
+from datetime import datetime
+from zoneinfo import ZoneInfo  
+
+
+TZ = ZoneInfo("Asia/Ho_Chi_Minh") 
+# now = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -102,7 +108,7 @@ def log_activity(user_id, activity_type, details=''):
     
     activity_data[user_id_str].append({
         'type': activity_type,
-        'timestamp': datetime.now().isoformat(),
+        'timestamp': datetime.now(TZ).isoformat(),
         'details': details
     })
     
@@ -115,7 +121,7 @@ def check_recent_activity(user_id, minutes=30):
     if user_id_str not in activity_data or not activity_data[user_id_str]:
         return False, 0
     
-    now = datetime.now()
+    now = datetime.now(TZ)
     recent_count = 0
     
     for activity in activity_data[user_id_str][-50:]:
@@ -126,7 +132,16 @@ def check_recent_activity(user_id, minutes=30):
             recent_count += 1
     
     return recent_count >= 3, recent_count
+def is_playing_gta(member: discord.Member) -> bool:
+    if not member.activities:
+        return False
 
+    for activity in member.activities:
+        if isinstance(activity, discord.Game) or isinstance(activity, discord.Activity):
+            if activity.name and "GTA5VN" in activity.name:
+                return True
+
+    return False
 class ConfirmOnDutyView(discord.ui.View):
     def __init__(self, user_id: int):
         super().__init__(timeout=180)  # 3 phút timeout
@@ -136,7 +151,7 @@ class ConfirmOnDutyView(discord.ui.View):
     @discord.ui.button(label="✅ Xác Nhận On-Duty", style=discord.ButtonStyle.success)
     async def confirm_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.user_id:
-            await interaction.response.send_message("❌ Đây không phải nút của bạn!", ephemeral=True)
+            await interaction.followup.send("❌ Đây không phải nút của bạn!", ephemeral=True)
             return
         
         self.confirmed = True
@@ -144,7 +159,7 @@ class ConfirmOnDutyView(discord.ui.View):
             title="✅ Đã Xác Nhận",
             description="Bạn đã xác nhận còn đang **ON-DUTY**!\nSẽ kiểm tra lại sau 3 tiếng nữa.",
             color=0x00FF7F,
-            timestamp=datetime.now()
+            timestamp=datetime.now(TZ)
         )
         embed.set_footer(text="Hệ Thống Chấm Công Sở La Mesa")
         await interaction.response.edit_message(embed=embed, view=None)
@@ -159,7 +174,7 @@ class ConfirmOnDutyView(discord.ui.View):
                 current_session = duty_data[user_id_str]['current_session']
                 if current_session:
                     start_time = datetime.fromisoformat(current_session['start_time'])
-                    end_time = datetime.now()
+                    end_time = datetime.now(TZ)
                     duration = end_time - start_time
                     
                     duty_data[user_id_str]['history'].append({
@@ -181,7 +196,7 @@ class ConfirmOnDutyView(discord.ui.View):
                                 title="⚠️ Tự Động Off-Duty",
                                 description="Bạn đã bị **TỰ ĐỘNG OFF-DUTY** do không xác nhận trong 3 phút!",
                                 color=0xFF0000,
-                                timestamp=datetime.now()
+                                timestamp=datetime.now(TZ)
                             )
                             hours = int(duration.total_seconds() // 3600)
                             minutes = int((duration.total_seconds() % 3600) // 60)
@@ -193,7 +208,7 @@ class ConfirmOnDutyView(discord.ui.View):
 
 @tasks.loop(hours=3)
 async def check_onduty_status():
-    """Kiểm tra và nhắc nhở người dùng on-duty mỗi 3 tiếng"""
+    """Kiểm tra và nhắc nhở người dùng on-duty mỗi 1 tiếng"""
     duty_data = load_data()
     duty_data = migrate_old_data(duty_data)
     
@@ -205,7 +220,7 @@ async def check_onduty_status():
             if user:
                 try:
                     start_time = datetime.fromisoformat(data['current_session']['start_time'])
-                    duration = datetime.now() - start_time
+                    duration = datetime.now(TZ) - start_time
                     hours = int(duration.total_seconds() // 3600)
                     minutes = int((duration.total_seconds() % 3600) // 60)
                     
@@ -213,7 +228,7 @@ async def check_onduty_status():
                         title="🔔 Xác Nhận Trạng Thái On-Duty",
                         description=f"Bạn đang **ON-DUTY** được **{hours}h {minutes}m**\n\n⚠️ Vui lòng xác nhận bạn vẫn còn đang làm việc!\n**Nếu không xác nhận trong 3 phút, hệ thống sẽ tự động OFF-DUTY.**",
                         color=0xFFA500,
-                        timestamp=datetime.now()
+                        timestamp=datetime.now(TZ)
                     )
                     embed.add_field(name="⏰ Thời gian bắt đầu", value=f"```{start_time.strftime('%H:%M:%S - %d/%m/%Y')}```", inline=False)
                     embed.set_footer(text="Hệ Thống Chấm Công Sở La Mesa")
@@ -274,19 +289,24 @@ async def onduty(interaction: discord.Interaction, image: discord.Attachment):
     
     member = interaction.guild.get_member(interaction.user.id) if interaction.guild else None
     
-    if member and member.status not in [discord.Status.online]:
+    if member:
         status_map = {
-            discord.Status.offline: "⚫ Offline",
-            discord.Status.idle: "🟡 Idle/Away",
-            discord.Status.dnd: "🔴 Do Not Disturb",
-            discord.Status.online: "🟢 Online"
-        }
-        current_status = status_map.get(member.status, str(member.status))
-        
+        discord.Status.offline: "⚫ Offline",
+        discord.Status.idle: "🟡 Idle/Away",
+        discord.Status.dnd: "🔴 Do Not Disturb",
+        discord.Status.online: "🟢 Online"
+    }
+
+    if member.status != discord.Status.online:
         await interaction.followup.send(
-            f"❌ Bạn cần đang ONLINE (🟢 xanh lá) trên Discord để chuyển sang on-duty!\n"
-            f"📊 Trạng thái hiện tại: {current_status}\n"
-            f"💡 Hãy chuyển sang trạng thái Online trong Discord",
+            f"❌ Bạn cần đang ONLINE!\n📊 Hiện tại: {status_map.get(member.status)}",
+            ephemeral=True
+        )
+        return
+
+    if not is_playing_gta(member):
+        await interaction.followup.send(
+            "❌ Bạn phải đang chơi **GTA5VN** mới được on-duty!",
             ephemeral=True
         )
         return
@@ -304,7 +324,7 @@ async def onduty(interaction: discord.Interaction, image: discord.Attachment):
                     img_data = await resp.read()
                     img = Image.open(io.BytesIO(img_data))
                     
-                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    timestamp = datetime.now(TZ).strftime('%Y%m%d_%H%M%S')
                     filename = f"{interaction.user.id}_{timestamp}.png"
                     filepath = EVIDENCE_DIR / filename
                     img.save(filepath)
@@ -314,7 +334,7 @@ async def onduty(interaction: discord.Interaction, image: discord.Attachment):
                     duty_data[user_id_str]['username'] = interaction.user.name
                     duty_data[user_id_str]['current_status'] = 'on-duty'
                     duty_data[user_id_str]['current_session'] = {
-                        'start_time': datetime.now().isoformat(),
+                        'start_time': datetime.now(TZ).isoformat(),
                         'evidence_image': str(filepath),
                         'discord_status': status_text
                     }
@@ -322,13 +342,13 @@ async def onduty(interaction: discord.Interaction, image: discord.Attachment):
                     save_data(duty_data)
                     log_activity(interaction.user.id, 'duty_on', f'Evidence: {filename}')
                     
-                    start_time_display = datetime.now().strftime('%H:%M:%S - %d/%m/%Y')
+                    start_time_display = datetime.now(TZ).strftime('%H:%M:%S - %d/%m/%Y')
                     
                     embed = discord.Embed(
                         title="",
                         description=f"# ✅ BẮT ĐẦU CÔNG VIỆC\n**{interaction.user.mention}** đã chuyển sang trạng thái **ON-DUTY**\n\n━━━━━━━━━━━━━━━━━━━━━",
                         color=0x00FF7F,
-                        timestamp=datetime.now()
+                        timestamp=datetime.now(TZ)
                     )
                     embed.add_field(name="⏰ Thời Gian Bắt Đầu", value=f"```{start_time_display}```", inline=False)
                     embed.add_field(name="📊 Trạng Thái Discord", value=f"```🟢 {status_text.capitalize()}```", inline=True)
@@ -349,16 +369,16 @@ async def offduty(interaction: discord.Interaction):
     duty_data, user_id_str = get_user_data(interaction.user.id)
     
     if duty_data[user_id_str]['current_status'] != 'on-duty':
-        await interaction.response.send_message("❌ Bạn không đang ở trạng thái on-duty!", ephemeral=True)
+        await interaction.followup.send("❌ Bạn không đang ở trạng thái on-duty!", ephemeral=True)
         return
     
     current_session = duty_data[user_id_str]['current_session']
     if not current_session:
-        await interaction.response.send_message("❌ Không tìm thấy session on-duty hiện tại!", ephemeral=True)
+        await interaction.followup.send("❌ Không tìm thấy session on-duty hiện tại!", ephemeral=True)
         return
     
     start_time = datetime.fromisoformat(current_session['start_time'])
-    end_time = datetime.now()
+    end_time = datetime.now(TZ)
     duration = end_time - start_time
     hours = int(duration.total_seconds() // 3600)
     minutes = int((duration.total_seconds() % 3600) // 60)
@@ -383,7 +403,7 @@ async def offduty(interaction: discord.Interaction):
         title="",
         description=f"# 🔴 KẾT THÚC CÔNG VIỆC\n**{interaction.user.mention}** đã chuyển sang trạng thái **OFF-DUTY**\n\n━━━━━━━━━━━━━━━━━━━━━",
         color=0xFF6347,
-        timestamp=datetime.now()
+        timestamp=datetime.now(TZ)
     )
     embed.add_field(name="⏰ Thời Gian Kết Thúc", value=f"```{end_time_display}```", inline=False)
     embed.add_field(name="⏱️ Tổng Thời Gian On-Duty", value=f"```🕐 {hours} giờ {minutes} phút```", inline=False)
@@ -392,7 +412,7 @@ async def offduty(interaction: discord.Interaction):
     embed.set_footer(text="LM | On-Duty System", icon_url=interaction.user.display_avatar.url)
     embed.set_author(name="Hệ Thống Chấm Công Sở La Mesa", icon_url=interaction.guild.icon.url if interaction.guild and interaction.guild.icon else None)
     
-    await interaction.response.send_message(embed=embed)
+    await interaction.followup.send(embed=embed)
 
 @bot.tree.command(name="checkduty", description="Xem danh sách thành viên đang on-duty")
 async def checkduty(interaction: discord.Interaction):
@@ -403,7 +423,7 @@ async def checkduty(interaction: discord.Interaction):
     for user_id, data in duty_data.items():
         if data.get('current_status') == 'on-duty' and data.get('current_session'):
             start_time = datetime.fromisoformat(data['current_session']['start_time'])
-            duration = datetime.now() - start_time
+            duration = datetime.now(TZ) - start_time
             hours = int(duration.total_seconds() // 3600)
             minutes = int((duration.total_seconds() % 3600) // 60)
             
@@ -415,14 +435,14 @@ async def checkduty(interaction: discord.Interaction):
             })
     
     if not on_duty_members:
-        await interaction.response.send_message("📋 Hiện tại không có thành viên nào đang on-duty.", ephemeral=True)
+        await interaction.followup.send("📋 Hiện tại không có thành viên nào đang on-duty.", ephemeral=True)
         return
     
     embed = discord.Embed(
         title="",
         description=f"# 📋 DANH SÁCH ON-DUTY\nHiện tại có **{len(on_duty_members)}** thành viên đang làm việc\n\n━━━━━━━━━━━━━━━━━━━━━",
         color=0x4169E1,
-        timestamp=datetime.now()
+        timestamp=datetime.now(TZ)
     )
     embed.set_footer(text="LM | Active Duty List", icon_url=interaction.guild.icon.url if interaction.guild and interaction.guild.icon else None)
     embed.set_author(name="Hệ Thống Chấm Công Sở La Mesa")
@@ -435,7 +455,7 @@ async def checkduty(interaction: discord.Interaction):
             inline=True
         )
     
-    await interaction.response.send_message(embed=embed)
+    await interaction.followup.send(embed=embed)
 
 @bot.tree.command(name="checkstats", description="Xem thống kê on-duty theo ngày/tuần/tháng/năm")
 @app_commands.describe(
@@ -455,15 +475,15 @@ async def checkstats(
     duty_data = migrate_old_data(duty_data)
     
     if ngay and (ngay < 1 or ngay > 31):
-        await interaction.response.send_message("❌ Ngày phải từ 1-31!", ephemeral=True)
+        await interaction.followup.send("❌ Ngày phải từ 1-31!", ephemeral=True)
         return
     
     if thang < 1 or thang > 12:
-        await interaction.response.send_message("❌ Tháng phải từ 1-12!", ephemeral=True)
+        await interaction.followup.send("❌ Tháng phải từ 1-12!", ephemeral=True)
         return
     
     if tuan and (tuan < 1 or tuan > 53):
-        await interaction.response.send_message("❌ Tuần phải từ 1-53!", ephemeral=True)
+        await interaction.followup.send("❌ Tuần phải từ 1-53!", ephemeral=True)
         return
     
     user_stats = {}
@@ -497,7 +517,7 @@ async def checkstats(
         
         if data.get('current_status') == 'on-duty' and data.get('current_session'):
             current_start = datetime.fromisoformat(data['current_session']['start_time'])
-            current_end = datetime.now()
+            current_end = datetime.now(TZ)
             
             match = False
             if tuan:
@@ -525,7 +545,7 @@ async def checkstats(
         else:
             time_desc = f"tháng {thang}/{nam}"
         
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"📊 Không có dữ liệu on-duty cho {time_desc}",
             ephemeral=True
         )
@@ -542,7 +562,7 @@ async def checkstats(
         title="",
         description=f"# 📊 THỐNG KÊ ON-DUTY\n📅 **{title_time}**\n🏆 Bảng xếp hạng thời gian làm việc\n\n━━━━━━━━━━━━━━━━━━━━━",
         color=0xFFD700,
-        timestamp=datetime.now()
+        timestamp=datetime.now(TZ)
     )
     embed.set_footer(text="LM | Statistics Dashboard", icon_url=interaction.guild.icon.url if interaction.guild and interaction.guild.icon else None)
     embed.set_author(name="Hệ Thống Chấm Công Sở La Mesa")
@@ -564,13 +584,83 @@ async def checkstats(
             inline=True
         )
     
-    await interaction.response.send_message(embed=embed)
+    await interaction.followup.send(embed=embed)
+@bot.tree.command(name="myduty", description="Xem trạng thái duty của bạn")
+async def myduty(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+
+    duty_data, user_id_str = get_user_data(interaction.user.id)
+    data = duty_data[user_id_str]
+
+    now = datetime.now(TZ)
+
+    def parse_time(ts: str):
+        dt = datetime.fromisoformat(ts)
+        return dt if dt.tzinfo else dt.replace(tzinfo=TZ)
+
+    def format_duration(seconds: float):
+        h = int(seconds // 3600)
+        m = int((seconds % 3600) // 60)
+        return f"{h}h {m}m"
+
+    embed = discord.Embed(
+        title="📋 THÔNG TIN DUTY CÁ NHÂN",
+        color=0x00BFFF,
+        timestamp=now
+    )
+
+    embed.add_field(name="👤 Người dùng", value=f"```{interaction.user.name}```", inline=True)
+    embed.add_field(name="📊 Trạng thái", value=f"```{data['current_status'].upper()}```", inline=True)
+
+    total_seconds = 0
+
+    # 🟢 current session
+    if data['current_status'] == 'on-duty' and data['current_session']:
+        try:
+            start_time = parse_time(data['current_session']['start_time'])
+            duration = (now - start_time).total_seconds()
+
+            embed.add_field(
+                name="⏱️ Đang làm",
+                value=f"```{format_duration(duration)}```",
+                inline=False
+            )
+            embed.add_field(
+                name="⏰ Bắt đầu",
+                value=f"```{start_time.strftime('%H:%M:%S - %d/%m/%Y')}```",
+                inline=False
+            )
+
+            total_seconds += duration
+        except Exception:
+            embed.add_field(name="⚠️ Lỗi dữ liệu", value="Không đọc được thời gian", inline=False)
+
+    # 📊 history
+    total_sessions = len(data.get('history', []))
+    for session in data.get('history', []):
+        total_seconds += session.get('duration_seconds', 0)
+
+    embed.add_field(
+        name="📈 Tổng thời gian",
+        value=f"```{format_duration(total_seconds)}```",
+        inline=True
+    )
+
+    embed.add_field(
+        name="📊 Số lần on-duty",
+        value=f"```{total_sessions} lần```",
+        inline=True
+    )
+
+    embed.set_footer(text="LM | Personal Duty Stats")
+
+    await interaction.followup.send(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="dailystats", description="Xem tổng thời gian on-duty hôm nay")
 async def dailystats(interaction: discord.Interaction):
     duty_data = load_data()
     duty_data = migrate_old_data(duty_data)
-    today = datetime.now().date()
+    today = datetime.now(TZ).date()
     today_start = datetime.combine(today, datetime.min.time())
     today_end = datetime.combine(today, datetime.max.time())
     
@@ -586,6 +676,12 @@ async def dailystats(interaction: discord.Interaction):
         for session in data.get('history', []):
             start_time = datetime.fromisoformat(session['start_time'])
             end_time = datetime.fromisoformat(session['end_time'])
+
+            if start_time.tzinfo is None:
+                start_time = start_time.replace(tzinfo=TZ)
+
+            if end_time.tzinfo is None:
+                end_time = end_time.replace(tzinfo=TZ)
             
             clamped_start = max(start_time, today_start)
             clamped_end = min(end_time, today_end)
@@ -597,7 +693,7 @@ async def dailystats(interaction: discord.Interaction):
         
         if data.get('current_status') == 'on-duty' and data.get('current_session'):
             current_start = datetime.fromisoformat(data['current_session']['start_time'])
-            current_end = datetime.now()
+            current_end = datetime.now(TZ)
             
             clamped_start = max(current_start, today_start)
             clamped_end = min(current_end, today_end)
@@ -610,7 +706,7 @@ async def dailystats(interaction: discord.Interaction):
     user_daily_stats = {k: v for k, v in user_daily_stats.items() if v['sessions'] > 0}
     
     if not user_daily_stats:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"📊 Chưa có ai on-duty trong ngày hôm nay ({today.strftime('%d/%m/%Y')})",
             ephemeral=True
         )
@@ -620,7 +716,7 @@ async def dailystats(interaction: discord.Interaction):
         title="",
         description=f"# 📊 THỐNG KÊ HÔM NAY\n📅 **{today.strftime('%d/%m/%Y')}**\n🏆 Bảng xếp hạng thời gian làm việc\n\n━━━━━━━━━━━━━━━━━━━━━",
         color=0xFFD700,
-        timestamp=datetime.now()
+        timestamp=datetime.now(TZ)
     )
     embed.set_footer(text="LM | Daily Statistics", icon_url=interaction.guild.icon.url if interaction.guild and interaction.guild.icon else None)
     embed.set_author(name="Hệ Thống Chấm Công Sở La Mesa")
@@ -642,7 +738,7 @@ async def dailystats(interaction: discord.Interaction):
             inline=True
         )
     
-    await interaction.response.send_message(embed=embed)
+    await interaction.followup.send(embed=embed)
 
 if __name__ == '__main__':
    
