@@ -13,5 +13,6 @@ import commands.duty.checkduty
 import commands.duty.checkstats
 import commands.duty.myduty
 import commands.duty.dailystats
-
+import commands.stats.checkprofile
+import commands.stats.checkhosokenh
 bot.run(TOKEN)

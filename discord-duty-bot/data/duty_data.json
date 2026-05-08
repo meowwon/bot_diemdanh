@@ -1,1 +1,16 @@
-{}
+{
+  "1223534130147622912": {
+    "username": "duyybinh",
+    "current_status": "off-duty",
+    "current_session": null,
+    "history": [
+      {
+        "start_time": "2026-05-08T12:20:59.705876+07:00",
+        "end_time": "2026-05-08T13:53:55.327131+07:00",
+        "duration_seconds": 5575.621255,
+        "evidence_image": "evidence_images\\1223534130147622912_20260508_122059.png",
+        "discord_status": "online"
+      }
+    ]
+  }
+}

@@ -107,7 +107,41 @@ async def onduty(interaction: discord.Interaction, image: discord.Attachment):
                     'duty_on',
                     filename
                 )
+                start_time_display = datetime.now(TZ).strftime("%d/%m/%Y %H:%M:%S")
+                status_text = str(member.status)
+
+                embed = discord.Embed(
+                    title="📋 ON DUTY",
+                    color=discord.Color.green()
+                )
+
+                embed.add_field(
+                    name="⏰ Thời Gian Bắt Đầu",
+                    value=f"```{start_time_display}```",
+                    inline=False
+                )
+
+                embed.add_field(
+                    name="📊 Trạng Thái Discord",
+                    value=f"```🟢 {status_text.capitalize()}```",
+                    inline=True
+                )
+
+                embed.add_field(
+                    name="👤 Nhân Viên",
+                    value=f"```{interaction.user.name}```",
+                    inline=True
+                )
+
+                embed.set_thumbnail(
+                    url=interaction.user.display_avatar.url
+                )
+
+                embed.set_image(
+                    url=image.url
+                )
 
                 await interaction.followup.send(
-                    f"✅ {interaction.user.mention} đã ON-DUTY"
+                    content=f"✅ {interaction.user.mention} đã ON-DUTY",
+                    embed=embed
                 )
