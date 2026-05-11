@@ -1,10 +1,12 @@
 import discord
 from discord import app_commands
-from datetime import datetime
+from datetime import datetime, timedelta
+from collections import defaultdict
 
 from core.bot import bot
 from utils.data_manager import load_data, migrate_old_data
 from core.timezone import TZ
+from utils.chart_pro import create_activity_chart_pro
 
 
 @bot.tree.command(
@@ -24,24 +26,15 @@ async def checkprofile(
 ):
     await interaction.response.defer()
 
+    # ===== PARSE DATE =====
     try:
-        start_date = datetime.strptime(from_date, "%d/%m/%Y")
-        end_date = datetime.strptime(to_date, "%d/%m/%Y")
-
-        start_date = start_date.replace(
-            hour=0,
-            minute=0,
-            second=0,
-            tzinfo=TZ
+        start_date = datetime.strptime(from_date, "%d/%m/%Y").replace(
+            hour=0, minute=0, second=0, tzinfo=TZ
         )
 
-        end_date = end_date.replace(
-            hour=23,
-            minute=59,
-            second=59,
-            tzinfo=TZ
+        end_date = datetime.strptime(to_date, "%d/%m/%Y").replace(
+            hour=23, minute=59, second=59, tzinfo=TZ
         )
-
     except:
         await interaction.followup.send(
             "❌ Format ngày phải là: dd/mm/yyyy",
@@ -49,9 +42,8 @@ async def checkprofile(
         )
         return
 
-    duty_data = load_data()
-    duty_data = migrate_old_data(duty_data)
-
+    # ===== LOAD DATA =====
+    duty_data = migrate_old_data(load_data())
     user_id = str(member.id)
 
     if user_id not in duty_data:
@@ -63,40 +55,60 @@ async def checkprofile(
 
     history = duty_data[user_id].get("history", [])
 
-    total_seconds = 0
-    total_sessions = 0
-
-    session_lines = []
+    # ===== PROCESS (OPTIMIZED) =====
+    daily_stats = defaultdict(lambda: {
+        "seconds": 0,
+        "sessions": 0,
+        "lines": []
+    })
 
     for session in history:
-        session_start = datetime.fromisoformat(session['start_time'])
-        session_end = datetime.fromisoformat(session['end_time'])
+        try:
+            session_start = datetime.fromisoformat(session['start_time'])
+            session_end = datetime.fromisoformat(session['end_time'])
+        except:
+            continue
 
         if session_start.tzinfo is None:
             session_start = session_start.replace(tzinfo=TZ)
-
         if session_end.tzinfo is None:
             session_end = session_end.replace(tzinfo=TZ)
 
-        if session_start <= end_date and session_end >= start_date:
+        # skip nhanh
+        if session_end < start_date or session_start > end_date:
+            continue
 
-            duration = session.get("duration_seconds", 0)
+        # clamp range
+        start = max(session_start, start_date)
+        end = min(session_end, end_date)
 
-            total_seconds += duration
-            total_sessions += 1
+        current_day = start.date()
+        end_day = end.date()
 
-            hours = int(duration // 3600)
-            minutes = int((duration % 3600) // 60)
+        while current_day <= end_day:
+            day_start = datetime.combine(current_day, datetime.min.time(), tzinfo=TZ)
+            day_end = datetime.combine(current_day, datetime.max.time(), tzinfo=TZ)
 
-            session_lines.append(
-                f"• {session_start.strftime('%d/%m %H:%M')} "
-                f"→ {session_end.strftime('%d/%m %H:%M')} "
-                f"({hours}h {minutes}m)"
-            )
+            seg_start = max(start, day_start)
+            seg_end = min(end, day_end)
 
-    total_hours = int(total_seconds // 3600)
-    total_minutes = int((total_seconds % 3600) // 60)
+            if seg_start < seg_end:
+                duration = (seg_end - seg_start).total_seconds()
+                key = current_day.strftime("%d/%m/%Y")
 
+                daily_stats[key]["seconds"] += duration
+                daily_stats[key]["sessions"] += 1
+
+                h = int(duration // 3600)
+                m = int((duration % 3600) // 60)
+
+                daily_stats[key]["lines"].append(
+                    f"• {seg_start.strftime('%H:%M')} → {seg_end.strftime('%H:%M')} ({h}h {m}m)"
+                )
+
+            current_day += timedelta(days=1)
+
+    # ===== EMBED =====
     embed = discord.Embed(
         title="📁 HỒ SƠ ON-DUTY",
         color=0x00BFFF,
@@ -115,31 +127,38 @@ async def checkprofile(
         inline=False
     )
 
-    embed.add_field(
-        name="📊 Tổng số ca",
-        value=f"```{total_sessions} ca```",
-        inline=True
-    )
-
-    embed.add_field(
-        name="⏱️ Tổng thời gian",
-        value=f"```{total_hours}h {total_minutes}m```",
-        inline=True
-    )
-
-    if session_lines:
+    # ===== DATA DISPLAY =====
+    if not daily_stats:
         embed.add_field(
-            name="📋 Chi tiết ca trực",
-            value="\n".join(session_lines[:15]),
+            name="📋 Dữ liệu",
+            value="Không có dữ liệu",
             inline=False
         )
-    else:
+        await interaction.followup.send(embed=embed)
+        return
+
+    # sort chuẩn theo ngày
+    sorted_days = sorted(
+        daily_stats.items(),
+        key=lambda x: datetime.strptime(x[0], "%d/%m/%Y")
+    )
+
+    for day, data in sorted_days:
+        h = int(data["seconds"] // 3600)
+        m = int((data["seconds"] % 3600) // 60)
+
         embed.add_field(
-            name="📋 Chi tiết ca trực",
-            value="Không có dữ liệu",
+            name=f"📅 {day} • {h}h {m}m • {data['sessions']} ca",
+            value="\n".join(data["lines"][:10]),
             inline=False
         )
 
     embed.set_footer(text="LM | Profile Duty System")
 
-    await interaction.followup.send(embed=embed)
+    # ===== CHART PRO =====
+    chart_buffer = create_activity_chart_pro(dict(sorted_days))
+    file = discord.File(chart_buffer, filename="activity.png")
+
+    embed.set_image(url="attachment://activity.png")
+
+    await interaction.followup.send(embed=embed, file=file)
