@@ -1,0 +1,104 @@
+{
+  "1403994792605651037": [
+    {
+      "type": "message",
+      "timestamp": "2026-05-08T10:59:12.125021+07:00",
+      "details": "Kênh: 📁┃hồ-sơ-đã-xử-lí"
+    }
+  ],
+  "291569950252990468": [
+    {
+      "type": "message",
+      "timestamp": "2026-05-08T11:45:06.444350+07:00",
+      "details": "Kênh: bot-duty-beta"
+    },
+    {
+      "type": "message",
+      "timestamp": "2026-05-08T11:48:56.353152+07:00",
+      "details": "Kênh: bot-duty-beta"
+    },
+    {
+      "type": "message",
+      "timestamp": "2026-05-08T14:10:26.548740+07:00",
+      "details": "Kênh: 📁┃hồ-sơ-đã-xử-lí"
+    }
+  ],
+  "1378396309974814982": [
+    {
+      "type": "message",
+      "timestamp": "2026-05-08T11:56:48.269933+07:00",
+      "details": "Kênh: 💬┃chat-khách"
+    }
+  ],
+  "1223534130147622912": [
+    {
+      "type": "duty_on",
+      "timestamp": "2026-05-08T12:20:59.712614+07:00",
+      "details": "1223534130147622912_20260508_122059.png"
+    },
+    {
+      "type": "message",
+      "timestamp": "2026-05-08T13:09:27.521436+07:00",
+      "details": "Kênh: 📁┃hồ-sơ-đã-xử-lí"
+    },
+    {
+      "type": "message",
+      "timestamp": "2026-05-08T13:10:26.156733+07:00",
+      "details": "Kênh: 💵┃đóng-tiền-quỹ-sở"
+    },
+    {
+      "type": "message",
+      "timestamp": "2026-05-08T13:39:43.877912+07:00",
+      "details": "Kênh: 🔎┃hồ-sơ-giám-sát"
+    },
+    {
+      "type": "message",
+      "timestamp": "2026-05-08T13:52:46.805620+07:00",
+      "details": "Kênh: 📝┃báo-cáo-hằng-ngày"
+    },
+    {
+      "type": "duty_off",
+      "timestamp": "2026-05-08T13:53:55.329410+07:00",
+      "details": "1h 32m"
+    }
+  ],
+  "952450622450466816": [
+    {
+      "type": "message",
+      "timestamp": "2026-05-08T12:32:33.817061+07:00",
+      "details": "Kênh: 💬┃chat-khách"
+    }
+  ],
+  "985210338339323914": [
+    {
+      "type": "message",
+      "timestamp": "2026-05-08T13:36:49.050511+07:00",
+      "details": "Kênh: 📁┃hồ-sơ-đã-xử-lí"
+    },
+    {
+      "type": "message",
+      "timestamp": "2026-05-08T13:40:43.267788+07:00",
+      "details": "Kênh: 🚨┃hỗ-trợ-và-giao-thông"
+    },
+    {
+      "type": "message",
+      "timestamp": "2026-05-08T13:55:08.265748+07:00",
+      "details": "Kênh: 📝┃báo-cáo-hằng-ngày"
+    },
+    {
+      "type": "message",
+      "timestamp": "2026-05-08T13:55:24.357148+07:00",
+      "details": "Kênh: 🚨┃hỗ-trợ-và-giao-thông"
+    },
+    {
+      "type": "message",
+      "timestamp": "2026-05-08T14:17:47.758733+07:00",
+      "details": "Kênh: 🚨┃hỗ-trợ-và-giao-thông"
+    },
+    {
+      "type": "message",
+      "timestamp": "2026-05-08T14:32:05.348157+07:00",
+      "details": "Kênh: 🚨┃hỗ-trợ-và-giao-thông"
+    }
+  ]
+}
